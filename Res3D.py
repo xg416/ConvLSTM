@@ -2,7 +2,7 @@
 """
 Created on Thu Apr 18 22:38:03 2019
 
-@author: 10659
+@author: Xg Zhang
 """
 
 import torch
