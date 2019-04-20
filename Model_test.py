@@ -2,15 +2,15 @@
 """
 Created on Fri Apr 19 20:57:23 2019
 
-@author: 10659
+@author: Xingguang Zhang
 """
 
 import torch
 import torch.nn as nn
 from torch.autograd import Variable
-from Atten_CLSTM_CPU import AttenConvLSTM
-from Res3D_CPU import Res3D
-from MobileNet_CPU import MobileNet
+from Atten_CLSTM import AttenConvLSTM
+from Res3D import Res3D
+from MobileNet import MobileNet
 
 class MyModule(nn.Module):
     def __init__(self, input_channels, input_shape, number_class):
@@ -52,6 +52,4 @@ if __name__ == '__main__':
     output = Model(input)
     output = output[0][0].double()
     res = torch.autograd.gradcheck(loss_fn, (output, target), eps=1e-6, raise_exception=True)
-    print(res)
-    
-    
+    print(res) 
