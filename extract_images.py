@@ -1,35 +1,33 @@
 # -*- coding: utf-8 -*-
 """
 Created on Fri Apr 19 17:30:52 2019
-Copy from: https://blog.csdn.net/qq_32799915/article/details/85704240 
-@author: https://blog.csdn.net/qq_32799915/article/details/85704240 
+reference: https://blog.csdn.net/qq_32799915/article/details/85704240 
+@author: Xingguang Zhang
 """
 import os
 import numpy as np
 import cv2
-from glob import glob
-
-_IMAGE_SIZE = 256
 
 def cal_for_frames(video_path):
-    frames = glob(os.path.join(video_path, '*.jpg'))
-    frames.sort()
-
+    cap = cv2.VideoCapture(video_path)
+    i = 0
     flow = []
-    prev = cv2.imread(frames[0])
-    prev = cv2.cvtColor(prev, cv2.COLOR_BGR2GRAY)
-    for i, frame_curr in enumerate(frames):
-        curr = cv2.imread(frame_curr)
-        curr = cv2.cvtColor(curr, cv2.COLOR_BGR2GRAY)
-        tmp_flow = compute_TVL1(prev, curr)
-        flow.append(tmp_flow)
-        prev = curr
-
+    while(cap.isOpened()):
+        ret, curr = cap.read()
+        if(not ret): break
+        if i == 0:
+            prev = cv2.cvtColor(curr, cv2.COLOR_BGR2GRAY)
+        else:
+            curr = cv2.cvtColor(curr, cv2.COLOR_BGR2GRAY)
+            tmp_flow = compute_TVL1(prev, curr)
+            flow.append(tmp_flow)
+            prev = curr
+        i += 1
     return flow
 
 def compute_TVL1(prev, curr, bound=15):
     """Compute the TV-L1 optical flow."""
-    TVL1 = cv2.DualTVL1OpticalFlow_create()
+    TVL1 = cv2.optflow.DualTVL1OpticalFlow_create()
     flow = TVL1.calc(prev, curr, None)
     assert flow.dtype == np.float32
 
@@ -56,8 +54,7 @@ def extract_flow(video_path,flow_path):
 
 if __name__ =='__main__':
 
-    video_paths="/home/xueqian/bishe/extrat_feature/output"
-    flow_paths="/home/xueqian/bishe/extrat_feature/flow"
-    video_lengths = 109 
+    video_paths=r"D:\S\IE690\proj\isoGD\IsoGD_phase_1\IsoGD_phase_1\train\001\M_00001.avi"
+    flow_paths=r"D:\S\IE690\proj\isoGD\train_image\Flow"
 
     extract_flow(video_paths, flow_paths)
