@@ -54,7 +54,18 @@ def extract_flow(video_path,flow_path):
 
 if __name__ =='__main__':
 
-    video_paths=r"D:\S\IE690\proj\isoGD\IsoGD_phase_1\IsoGD_phase_1\train\001\M_00001.avi"
-    flow_paths=r"D:\S\IE690\proj\isoGD\train_image\Flow"
-
-    extract_flow(video_paths, flow_paths)
+	path = r'/home/isat-deep/Documents/isoGD/isoGD/IsoGD_phase_2/IsoGD_phase_2/test'
+	w_path = r'/home/isat-deep/Documents/isoGD/test_images/Flow'
+	for folder in os.listdir(path):
+		f_path = os.path.join(path, folder)
+		for video in os.listdir(f_path):
+			if video[0] == 'M':
+				# create original RGB video path
+				v_path = os.path.join(f_path, video)
+				# create flow path
+				video_idx = video.split('.')
+				video_idx = video_idx[0]
+				FlowFolder = 'F' + video_idx[1:]
+				write_path = os.path.join(w_path, FlowFolder)
+				os.mkdir(write_path)
+				extract_flow(v_path, write_path)
