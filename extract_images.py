@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 """
 Created on Fri Apr 19 17:30:52 2019
-
-@author: 10659
+Copy from: https://blog.csdn.net/qq_32799915/article/details/85704240 
+@author: https://blog.csdn.net/qq_32799915/article/details/85704240 
 """
 import os
 import numpy as np
@@ -61,9 +61,3 @@ if __name__ =='__main__':
     video_lengths = 109 
 
     extract_flow(video_paths, flow_paths)
---------------------- 
-作者：qq_32799915 
-来源：CSDN 
-原文：https://blog.csdn.net/qq_32799915/article/details/85704240 
-版权声明：本文为博主原创文章，转载请附上博文链接！
-        
