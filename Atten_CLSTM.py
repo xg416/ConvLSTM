@@ -284,7 +284,7 @@ class AttenConvLSTM(nn.Module):
         self.bias = bias
         self.init_method = init_method
         #self.effective_step = effective_step
-        self._all_layers = []
+
         if AttenMethod == 'a':
             cell0 = GateConvLSTMCell(self.input_channels[0], self.hidden_channels[0], \
                                     self.kernel_size, self.bias, self.init_method)
@@ -309,7 +309,6 @@ class AttenConvLSTM(nn.Module):
         cell1 = GateConvLSTMCell(self.input_channels[1], self.hidden_channels[1], \
                                  self.kernel_size, self.bias, self.init_method)
         setattr(self, 'cell1', cell1)
-        self._all_layers.append(cell1)
         
     def forward(self, input):
         internal_state = []
