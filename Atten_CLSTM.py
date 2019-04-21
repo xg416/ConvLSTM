@@ -4,7 +4,6 @@ Created on Thu Apr 18 10:26:28 2019
 
 @author: 10659
 """
-
 import torch
 import torch.nn as nn
 from torch.autograd import Variable
@@ -35,13 +34,17 @@ class GateConvLSTMCell(nn.Module):
         self.Whc_p = nn.Conv2d(self.hidden_channels, self.hidden_channels, (1,1), 1, 0, bias=False)        
         self.Wxo = nn.Conv2d(self.input_channels, self.hidden_channels, self.kernel_size, 1, self.padding,  bias=True)
         self.Who = nn.Conv2d(self.hidden_channels, self.hidden_channels, self.kernel_size, 1, self.padding, bias=False)
+
+        self.xgpooling = nn.AdaptiveAvgPool2d(1)
+        self.hgpooling = nn.AdaptiveAvgPool2d(1)
+
         for w in self.modules():
             if isinstance(w, nn.Conv2d):
                 getattr(nn.init, self.init_method)(w.weight)
 
     def forward(self, x, h, c):
-        x_global = nn.AdaptiveAvgPool2d(1)(x)
-        h_global = nn.AdaptiveAvgPool2d(1)(h)
+        x_global = self.xgpooling(x)
+        h_global = self.hgpooling(h)
         ci = torch.sigmoid(self.Wxi(x_global) + self.Whi(h_global))
         cf = torch.sigmoid(self.Wxf(x_global) + self.Whf(h_global))
         co = torch.sigmoid(self.Wxo(x_global) + self.Who(h_global))
@@ -51,8 +54,12 @@ class GateConvLSTMCell(nn.Module):
         return ch, cc
 
     def init_hidden(self, batch_size, hidden, shape):
-        return (Variable(torch.zeros(batch_size, hidden, shape[0], shape[1])),
-                Variable(torch.zeros(batch_size, hidden, shape[0], shape[1])))
+        if torch.cuda.is_available():
+            return (Variable(torch.zeros(batch_size, hidden, shape[0], shape[1])).cuda(),
+                    Variable(torch.zeros(batch_size, hidden, shape[0], shape[1])).cuda())
+        else:
+            return (Variable(torch.zeros(batch_size, hidden, shape[0], shape[1])),
+                    Variable(torch.zeros(batch_size, hidden, shape[0], shape[1])))
 
 class AConvLSTMCell_b(nn.Module):
     def __init__(self, input_channels, hidden_channels, kernel_size, bias=True, init_method = 'xavier_normal_'):
@@ -89,21 +96,24 @@ class AConvLSTMCell_b(nn.Module):
         self.Wxo = nn.Conv2d(self.input_channels, self.hidden_channels, self.kernel_size, 1, self.padding,  bias=False)
         self.Who = nn.Conv2d(self.hidden_channels, self.hidden_channels, self.kernel_size, 1, self.padding, bias=False)
 
+        self.xgpooling = nn.AdaptiveAvgPool2d(1)
+        self.hgpooling = nn.AdaptiveAvgPool2d(1)
+        self.softmax = nn.Softmax(dim = 2)
+
         for w in self.modules():
             if isinstance(w, nn.Conv2d):
                 getattr(nn.init, self.init_method)(w.weight)
 
     def SoftmaxPixel(self, s):
         batch,channel,height,weight = s.size()
-        softmax = nn.Softmax(dim = 2)
-        return softmax(s.view(batch,channel,-1)).view(batch,channel,height,weight)
+        return self.softmax(s.view(batch,channel,-1)).view(batch,channel,height,weight)
 
     def forward(self, x, h, c):
         Zt = self.Wz(torch.tanh(self.Wxa_p(self.Wxa_d(x)) + self.Wha_p(self.Wha_d(h))))
         At = self.SoftmaxPixel(Zt)
         x = At * x
-        x_global = nn.AdaptiveAvgPool2d(1)(x)
-        h_global = nn.AdaptiveAvgPool2d(1)(h)
+        x_global = self.xgpooling(x)
+        h_global = self.hgpooling(h)
         ci = torch.sigmoid(self.Wxi(x_global) + self.Whi(h_global))
         cf = torch.sigmoid(self.Wxf(x_global) + self.Whf(h_global))
         co = torch.sigmoid(self.Wxo(x_global) + self.Who(h_global))
@@ -113,8 +123,12 @@ class AConvLSTMCell_b(nn.Module):
         return ch, cc
 
     def init_hidden(self, batch_size, hidden, shape):
-        return (Variable(torch.zeros(batch_size, hidden, shape[0], shape[1])),
-                Variable(torch.zeros(batch_size, hidden, shape[0], shape[1])))
+        if torch.cuda.is_available():
+            return (Variable(torch.zeros(batch_size, hidden, shape[0], shape[1])).cuda(),
+                    Variable(torch.zeros(batch_size, hidden, shape[0], shape[1])).cuda())
+        else:
+            return (Variable(torch.zeros(batch_size, hidden, shape[0], shape[1])),
+                    Variable(torch.zeros(batch_size, hidden, shape[0], shape[1])))
 
 class AConvLSTMCell_c(nn.Module):
     def __init__(self, input_channels, hidden_channels, kernel_size, bias=True, init_method = 'xavier_normal_'):
@@ -150,14 +164,17 @@ class AConvLSTMCell_c(nn.Module):
         self.Whc_p = nn.Conv2d(self.hidden_channels, self.hidden_channels, (1,1), 1, 0, bias=True)        
         self.Wxo = nn.Conv2d(self.input_channels, self.hidden_channels, self.kernel_size, 1, self.padding,  bias=True)
         self.Who = nn.Conv2d(self.hidden_channels, self.hidden_channels, self.kernel_size, 1, self.padding, bias=False)
+
+        self.softmax= nn.Softmax(dim = 2)
+        self.xgpooling = nn.AdaptiveAvgPool2d(1)
+        self.hgpooling = nn.AdaptiveAvgPool2d(1)
         for w in self.modules():
             if isinstance(w, nn.Conv2d):
                 getattr(nn.init, self.init_method)(w.weight)
                 
     def SoftmaxPixel_Max(self, s):
         batch,channel,height,weight = s.size()
-        softmax = nn.Softmax(dim = 2)
-        newS = softmax(s.view(batch,channel,-1))
+        newS = self.softmax(s.view(batch,channel,-1))
         MaxS,_ = torch.max(newS, dim = 2, keepdim = True,out=None)
         newS = newS / MaxS
         return newS.view(batch,channel,height,weight)
@@ -165,8 +182,8 @@ class AConvLSTMCell_c(nn.Module):
     def forward(self, x, h, c):
         Zt = self.Wz(torch.tanh(self.Wxa_p(self.Wxa_d(x)) + self.Wha_p(self.Wha_d(h))))
         ci = self.SoftmaxPixel_Max(Zt)                
-        x_global = nn.AdaptiveAvgPool2d(1)(x)
-        h_global = nn.AdaptiveAvgPool2d(1)(h)
+        x_global = self.xgpooling(x)
+        h_global = self.hgpooling(h)
         cf = torch.sigmoid(self.Wxf(x_global) + self.Whf(h_global))
         co = torch.sigmoid(self.Wxo(x_global) + self.Who(h_global))
         G = torch.tanh(self.Wxc_p(self.Wxc_d(x)) + self.Whc_p(self.Whc_d(h)))
@@ -175,8 +192,12 @@ class AConvLSTMCell_c(nn.Module):
         return ch, cc
 
     def init_hidden(self, batch_size, hidden, shape):
-        return (Variable(torch.zeros(batch_size, hidden, shape[0], shape[1])),
-                Variable(torch.zeros(batch_size, hidden, shape[0], shape[1])))
+        if torch.cuda.is_available():
+            return (Variable(torch.zeros(batch_size, hidden, shape[0], shape[1])).cuda(),
+                    Variable(torch.zeros(batch_size, hidden, shape[0], shape[1])).cuda())
+        else:
+            return (Variable(torch.zeros(batch_size, hidden, shape[0], shape[1])),
+                    Variable(torch.zeros(batch_size, hidden, shape[0], shape[1])))
 
 class AConvLSTMCell_d(nn.Module):
     def __init__(self, input_channels, hidden_channels, kernel_size, bias=True, init_method = 'xavier_normal_'):
@@ -213,14 +234,17 @@ class AConvLSTMCell_d(nn.Module):
         self.Wxo = nn.Conv2d(self.input_channels, self.hidden_channels, self.kernel_size, 1, self.padding,  bias=True)
         self.Who = nn.Conv2d(self.hidden_channels, self.hidden_channels, self.kernel_size, 1, self.padding, bias=False)
         
+        self.softmax= nn.Softmax(dim = 2)
+        self.xgpooling = nn.AdaptiveAvgPool2d(1)
+        self.hgpooling = nn.AdaptiveAvgPool2d(1)
+
         for w in self.modules():
             if isinstance(w, nn.Conv2d):
                 getattr(nn.init, self.init_method)(w.weight)
 
     def SoftmaxPixel_Max(self, s):
         batch,channel,height,weight = s.size()
-        softmax = nn.Softmax(dim = 2)
-        newS = softmax(s.view(batch,channel,-1))
+        newS = self.softmax(s.view(batch,channel,-1))
         MaxS,_ = torch.max(newS, dim = 2, keepdim = True,out=None)
         newS = newS / MaxS
         return newS.view(batch,channel,height,weight)
@@ -228,8 +252,8 @@ class AConvLSTMCell_d(nn.Module):
     def forward(self, x, h, c):
         Zt = self.Wz(torch.tanh(self.Wxa_p(self.Wxa_d(x)) + self.Wha_p(self.Wha_d(h))))
         co = self.SoftmaxPixel_Max(Zt)
-        x_global = nn.AdaptiveAvgPool2d(1)(x)
-        h_global = nn.AdaptiveAvgPool2d(1)(h)
+        x_global = self.xgpooling(x)
+        h_global = self.hgpooling(h)
         ci = torch.sigmoid(self.Wxi(x_global) + self.Whi(h_global))
         cf = torch.sigmoid(self.Wxf(x_global) + self.Whf(h_global))
 #        co = torch.sigmoid(self.Wxo(x_global) + self.Who(h_global))
@@ -239,8 +263,12 @@ class AConvLSTMCell_d(nn.Module):
         return ch, cc
 
     def init_hidden(self, batch_size, hidden, shape):
-        return (Variable(torch.zeros(batch_size, hidden, shape[0], shape[1])),
-                Variable(torch.zeros(batch_size, hidden, shape[0], shape[1])))
+        if torch.cuda.is_available():
+            return (Variable(torch.zeros(batch_size, hidden, shape[0], shape[1])).cuda(),
+                    Variable(torch.zeros(batch_size, hidden, shape[0], shape[1])).cuda())
+        else:
+            return (Variable(torch.zeros(batch_size, hidden, shape[0], shape[1])),
+                    Variable(torch.zeros(batch_size, hidden, shape[0], shape[1])))
         
 class AttenConvLSTM(nn.Module):
     # input_channels corresponds to the first input feature map
@@ -285,7 +313,10 @@ class AttenConvLSTM(nn.Module):
         
     def forward(self, input):
         internal_state = []
-        outputs = torch.randn(8, self.hidden_channels[-1], self.step, 28, 28)
+        if input.is_cuda:
+            outputs = torch.randn(input.shape[0], self.hidden_channels[-1], self.step, 28, 28).cuda()
+        else:
+            outputs = torch.randn(input.shape[0], self.hidden_channels[-1], self.step, 28, 28)
         for step in range(self.step):
             x = input[:,:,step,:,:]
             for i in range(self.num_layers):
@@ -307,17 +338,19 @@ class AttenConvLSTM(nn.Module):
 if __name__ == '__main__':
 
     # gradient check
-    b_s = 8    
-    outchannel = 4
-    seq_length = 10
-    convlstm = AttenConvLSTM(input_channels=16, hidden_channels=[16, outchannel], \
+    b_s = 2    
+    in_channel = 64
+    outchannel = 64
+    seq_length = 32
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    convlstm = AttenConvLSTM(input_channels=in_channel, hidden_channels=[256, outchannel], \
                              kernel_size=3, step = seq_length, init_method = 'xavier_normal_',\
-                             AttenMethod = 'b')
+                             AttenMethod = 'b').to(device)
     # init_method = xavier_normal_ / kaiming_normal_ / orthogonal_
     loss_fn = torch.nn.MSELoss()
 
-    input = Variable(torch.randn(b_s, 16, seq_length, 28, 28))
-    target = Variable(torch.randn(b_s, outchannel, seq_length, 28, 28)).double()
+    input = Variable(torch.randn(b_s, in_channel, seq_length, 28, 28)).cuda()
+    target = Variable(torch.randn(b_s, outchannel, seq_length, 28, 28)).double().cuda()
     
     output = convlstm(input)
     output = output[0][0].double()
