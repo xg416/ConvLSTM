@@ -4,17 +4,17 @@ Created on Fri Apr 19 20:57:23 2019
 
 @author: Xingguang Zhang
 """
-
 import torch
 import torch.nn as nn
 from torch.autograd import Variable
 from Atten_CLSTM import AttenConvLSTM
 from Res3D import Res3D
 from MobileNet import MobileNet
+import time
 
-class MyModule(nn.Module):
-    def __init__(self, input_channels, input_shape, number_class):
-        super(MyModule, self).__init__()
+class Res_clstm_MN(nn.Module):
+    def __init__(self, input_channels, input_shape, number_class, AttenMethod):
+        super(Res_clstm_MN, self).__init__()
         self.in_channels = input_channels
         self.OutChannel_Res3D = [64, 64, 128, 256]
         self.in_LSTM = self.OutChannel_Res3D[-1]
@@ -24,32 +24,43 @@ class MyModule(nn.Module):
         self.step_lstm = int(input_shape[2] / 2)
         self.batch_size = input_shape[0]
         self.number_class = number_class
-    
-    def forward(self, input): 
-        res = Res3D(self.in_channels, output_channels=self.OutChannel_Res3D, \
-                  init_method = 'kaiming_normal_')(input)
-        convlstm = AttenConvLSTM(input_channels=self.in_LSTM, hidden_channels = self.hidden_LSTM, \
+
+        self.r3D = Res3D(self.in_channels, output_channels=self.OutChannel_Res3D, \
+                  init_method = 'kaiming_normal_')
+        self.aclstm = AttenConvLSTM(input_channels=self.in_LSTM, hidden_channels = self.hidden_LSTM, \
                                  kernel_size=3, step = self.step_lstm, init_method = 'xavier_normal_',\
-                                 AttenMethod = 'b')(res)
-        mn = MobileNet(input_channels=self.in_channel_MN)(convlstm)
-        gpooling = nn.AvgPool3d(kernel_size = (self.step_lstm, 4, 4))(mn)
-        flatten = gpooling.View(self.batch_size, -1)
-        flatten = nn.Linear(1024, self.number_class)(flatten)
-        result = nn.Softmax(dim = 1)(flatten)
+                                 AttenMethod = AttenMethod)
+        self.MoNet = MobileNet(input_channels=self.in_channel_MN)
+        self.avgpool3d = nn.AvgPool3d(kernel_size = (self.step_lstm, 4, 4))
+        self.dense = nn.Linear(1024, self.number_class)
+        self.softmax = nn.Softmax(dim = 1)
+
+    def forward(self, input): 
+        res = self.r3D(input)
+        convlstm = self.aclstm(res)
+        mn = self.MoNet(convlstm)
+        gpooling = self.avgpool3d(mn)
+        flatten = gpooling.view(self.batch_size, -1)
+        flatten = self.dense(flatten)
+        result = self.softmax(flatten)
         
         return result
 
 if __name__ == '__main__':
     seq_length = 32
     classes = 250
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    start = time.time()
+    input = Variable(torch.randn(2, 3, seq_length, 112, 112)).cuda()
+    target = Variable(torch.randn(2, classes)).double().cuda()
     
-    input = Variable(torch.randn(2, 3, seq_length, 112, 112))
-    target = Variable(torch.randn(2, classes)).double()
-    
-    Model = MyModule(input_channels=3, input_shape = input.shape, number_class = classes)
-    loss_fn = torch.nn.MSELoss()
+    Model = Res_clstm_MN(input_channels=3, input_shape = input.shape, \
+        number_class = classes, AttenMethod = 'd').to(device)
+    loss_fn = torch.nn.CrossEntropyLoss()
     
     output = Model(input)
     output = output[0][0].double()
-    res = torch.autograd.gradcheck(loss_fn, (output, target), eps=1e-6, raise_exception=True)
-    print(res) 
+    res = torch.autograd.gradcheck(loss_fn, (output, target), eps=1e-5, raise_exception=True)
+    end = time.time()
+    print(res, end-start) 
