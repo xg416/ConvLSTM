@@ -289,22 +289,21 @@ class AttenConvLSTM(nn.Module):
             cell0 = GateConvLSTMCell(self.input_channels[0], self.hidden_channels[0], \
                                     self.kernel_size, self.bias, self.init_method)
             setattr(self, 'cell0', cell0)
-            self._all_layers.append(cell0)
+            
         elif AttenMethod == 'b':
             cell0 = AConvLSTMCell_b(self.input_channels[0], self.hidden_channels[0], \
                                     self.kernel_size, self.bias, self.init_method)
             setattr(self, 'cell0', cell0)
-            self._all_layers.append(cell0)
+            
         elif AttenMethod == 'c':
             cell0 = AConvLSTMCell_c(self.input_channels[0], self.hidden_channels[0], \
                                     self.kernel_size, self.bias, self.init_method)
             setattr(self, 'cell0', cell0)
-            self._all_layers.append(cell0)
+            
         elif AttenMethod == 'd':
             cell0 = AConvLSTMCell_d(self.input_channels[0], self.hidden_channels[0], \
                                     self.kernel_size, self.bias, self.init_method)
             setattr(self, 'cell0', cell0)
-            self._all_layers.append(cell0)
             
         cell1 = GateConvLSTMCell(self.input_channels[1], self.hidden_channels[1], \
                                  self.kernel_size, self.bias, self.init_method)
