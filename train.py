@@ -47,7 +47,9 @@ def train(training_datalist, batch_size, seq_len, num_classes, cfg_modality, dev
     AvgLoss = 0
     batch_num = len(training_datalist[0]) / batch_size
     success_number = 0
+    batch_idx = 0
     for data, label in isoImageGenerator(training_datalist, batch_size, seq_len, num_classes, cfg_modality, Training = True):
+        start = time.time()
         lr = poly_lr_scheduler(optimizer, init_lr = 0.0001, iter = current, lr_decay_iter=1,max_iter=10, power=1.5)
         data = data.transpose(0,4,1,2,3)
         input = torch.from_numpy(data).float().to(device)
@@ -60,7 +62,8 @@ def train(training_datalist, batch_size, seq_len, num_classes, cfg_modality, dev
         s =success(output, target)
         success_number += s
         AvgLoss += float(loss)
-        print(s, float(loss))
+        print('time:', time.time() - start, 'batch:', batch_idx, s, float(loss))
+        batch_idx += 1
     return AvgLoss / batch_num, success_number / batch_num
 
 def validate(valid_datalist, batch_size, seq_len, num_classes, cfg_modality, device):
@@ -78,6 +81,12 @@ def validate(valid_datalist, batch_size, seq_len, num_classes, cfg_modality, dev
         AvgLoss += float(loss)
     return AvgLoss / batch_num, success_number / batch_num
 
+def save_log(path, cond_train, cond_validate):
+    fo = open(path, 'w')
+    for i in range(len(cond_train)):
+        fo.write('str(i)'+str(cond_train[0])+str(cond_train[1])+str(cond_validate[0])+str(cond_validate[1])+'\n')
+    fo.close()
+
 
 if __name__ == '__main__':
 
@@ -90,6 +99,7 @@ if __name__ == '__main__':
     training_datalist = []
     valid_datalist = []
     model_path = '/home/isat-deep/Documents/isoGD/model.pkl'
+    log_path = '/home/isat-deep/Documents/isoGD/log.txt'
     # Modality
     RGB = 0
     Depth = 1
@@ -130,7 +140,10 @@ if __name__ == '__main__':
             cfg_modality, device, max_iter = total_epoch, current = epoch)
         loss_validation, accu_validation = validate(valid_datalist, batch_size, seq_len, \
             num_classes, cfg_modality, device)
-
+        print('epoch:', epoch)
+        print('train:', loss_train, accu_train)
+        print('validate:', loss_validation, accu_validation)
         cond_train.append([loss_train, accu_train])
         cond_validate.append([loss_validation, accu_validation])
+        save_log(log_path, cond_train, cond_validate)
         torch.save(Model, model_path)
