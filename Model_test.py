@@ -13,9 +13,9 @@ from MobileNet import MobileNet
 import time
 
 class Res_clstm_MN(nn.Module):
-    def __init__(self, input_channels, input_shape, number_class, AttenMethod):
+    def __init__(self, input_shape, number_class, AttenMethod):
         super(Res_clstm_MN, self).__init__()
-        self.in_channels = input_channels
+        self.in_channels = input_shape[1]
         self.OutChannel_Res3D = [64, 64, 128, 256]
         self.in_LSTM = self.OutChannel_Res3D[-1]
         self.hidden_LSTM = [256, 256]
@@ -42,9 +42,9 @@ class Res_clstm_MN(nn.Module):
         gpooling = self.avgpool3d(mn)
         flatten = gpooling.view(self.batch_size, -1)
         flatten = self.dense(flatten)
-        result = self.softmax(flatten)
+   #     result = self.softmax(flatten)
         
-        return result
+        return flatten
 
 if __name__ == '__main__':
     seq_length = 32
@@ -52,15 +52,14 @@ if __name__ == '__main__':
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     start = time.time()
-    input = Variable(torch.randn(2, 3, seq_length, 112, 112)).cuda()
-    target = Variable(torch.randn(2, classes)).double().cuda()
+    input = Variable(torch.randn(2, 3, seq_length, 112, 112)).to(device)
+    target = Variable(torch.randn(2, classes)).argmax().to(device)
     
-    Model = Res_clstm_MN(input_channels=3, input_shape = input.shape, \
+    Model = Res_clstm_MN(input_shape = input.shape, \
         number_class = classes, AttenMethod = 'd').to(device)
     loss_fn = torch.nn.CrossEntropyLoss()
     
     output = Model(input)
-    output = output[0][0].double()
     res = torch.autograd.gradcheck(loss_fn, (output, target), eps=1e-5, raise_exception=True)
     end = time.time()
     print(res, end-start) 
