@@ -15,7 +15,7 @@ from datagen import isoImageGenerator
 import inputs as data
 
 def poly_lr_scheduler(optimizer, init_lr, iter, lr_decay_iter=1,
-                      max_iter=10, power=1.5):
+                      max_iter=10, power=2):
     """
     Polynomial decay of learning rate
         :param init_lr is base learning rate
@@ -45,12 +45,11 @@ def success(output, target):
 
 def train(training_datalist, batch_size, seq_len, num_classes, cfg_modality, device, max_iter = 10, current = 0):
     AvgLoss = 0
-    batch_num = len(training_datalist[0]) / batch_size
+    batch_num = 0
     success_number = 0
     batch_idx = 0
     for data, label in isoImageGenerator(training_datalist, batch_size, seq_len, num_classes, cfg_modality, Training = True):
         start = time.time()
-        lr = poly_lr_scheduler(optimizer, init_lr = 0.0001, iter = current, lr_decay_iter=1,max_iter=10, power=1.5)
         data = data.transpose(0,4,1,2,3)
         input = torch.from_numpy(data).float().to(device)
         target = torch.from_numpy(label).argmax(dim = 1).to(device)
@@ -61,16 +60,20 @@ def train(training_datalist, batch_size, seq_len, num_classes, cfg_modality, dev
         optimizer.step()
         s =success(output, target)
         success_number += s
-        AvgLoss += float(loss)
+        AvgLoss += float(loss.detach().item())
         print('time:', time.time() - start, 'batch:', batch_idx, s, float(loss))
         batch_idx += 1
+        batch_num += batch_size
+        if batch_idx == 3:
+            break
     return AvgLoss / batch_num, success_number / batch_num
 
 def validate(valid_datalist, batch_size, seq_len, num_classes, cfg_modality, device):
     AvgLoss = 0
-    batch_num = len(valid_datalist[0]) / batch_size
+    batch_num = 0
     success_number = 0
     for data, label in isoImageGenerator(valid_datalist, batch_size, seq_len, num_classes, cfg_modality, Training = False):
+        batch_idx = 0
         data = data.transpose(0,4,1,2,3)
         input = torch.from_numpy(data).float().to(device)
         target = torch.from_numpy(label).argmax(dim = 1).to(device)
@@ -79,6 +82,8 @@ def validate(valid_datalist, batch_size, seq_len, num_classes, cfg_modality, dev
         loss = loss_fn(output, target)
         success_number += success(output, target)
         AvgLoss += float(loss)
+        batch_idx += 1
+        batch_num += batch_size
     return AvgLoss / batch_num, success_number / batch_num
 
 def save_log(path, cond_train, cond_validate):
@@ -122,20 +127,22 @@ if __name__ == '__main__':
     batch_size = 8
     seq_len = 32
     num_classes = 249
-    total_epoch = 20
-
+    total_epoch = 10
+    init_lr = 0.001
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     Model = Res_clstm_MN(input_shape = (batch_size, input_channels, seq_len, 112, 112), \
         number_class = num_classes, AttenMethod = 'a').to(device)
 
     loss_fn = nn.CrossEntropyLoss()
 
-    optimizer = torch.optim.SGD(Model.parameters(), lr = 0.0001,\
+    optimizer = torch.optim.SGD(Model.parameters(), lr = 0.001,\
                                 momentum = 0.9,\
                                 weight_decay = 0.00005)
     cond_train = []
     cond_validate = []
+
     for epoch in range(total_epoch):
+        lr = poly_lr_scheduler(optimizer, init_lr, iter = epoch, lr_decay_iter=1, max_iter=total_epoch, power=3)
         loss_train, accu_train = train(training_datalist, batch_size, seq_len, num_classes, \
             cfg_modality, device, max_iter = total_epoch, current = epoch)
         loss_validation, accu_validation = validate(valid_datalist, batch_size, seq_len, \
