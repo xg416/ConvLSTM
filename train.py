@@ -64,8 +64,6 @@ def train(training_datalist, batch_size, seq_len, num_classes, cfg_modality, dev
         print('time:', time.time() - start, 'batch:', batch_idx, s, float(loss))
         batch_idx += 1
         batch_num += batch_size
-        if batch_idx == 3:
-            break
     return AvgLoss / batch_num, success_number / batch_num
 
 def validate(valid_datalist, batch_size, seq_len, num_classes, cfg_modality, device):
