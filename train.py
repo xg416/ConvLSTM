@@ -13,6 +13,7 @@ from Res_clstm_MN import Res_clstm_MN
 import time
 from datagen import isoImageGenerator
 import inputs as data
+import torch.backends.cudnn as cudnn
 
 def poly_lr_scheduler(optimizer, init_lr, iter, lr_decay_iter=1,
                       max_iter=10, power=2):
@@ -43,7 +44,7 @@ def success(output, target):
             success_number += 1
     return success_number
 
-def train(training_datalist, batch_size, seq_len, num_classes, cfg_modality, device, max_iter = 10, current = 0):
+def train(Model, optimizer, loss_fn,training_datalist, batch_size, seq_len, num_classes, cfg_modality, device, max_iter = 10, current = 0):
     AvgLoss = 0
     batch_num = 0
     success_number = 0
@@ -57,21 +58,22 @@ def train(training_datalist, batch_size, seq_len, num_classes, cfg_modality, dev
         output = Model(input)
         loss = loss_fn(output, target)
         loss.backward()
+
         optimizer.step()
         s =success(output, target)
         success_number += s
-        AvgLoss += float(loss.detach().item())
+        AvgLoss += float(loss.item())
         print('time:', time.time() - start, 'batch:', batch_idx, s, float(loss))
         batch_idx += 1
         batch_num += batch_size
     return AvgLoss / batch_num, success_number / batch_num
 
-def validate(valid_datalist, batch_size, seq_len, num_classes, cfg_modality, device):
+def validate(Model,optimizer, loss_fn,valid_datalist, batch_size, seq_len, num_classes, cfg_modality, device):
     AvgLoss = 0
     batch_num = 0
     success_number = 0
+    batch_idx = 0
     for data, label in isoImageGenerator(valid_datalist, batch_size, seq_len, num_classes, cfg_modality, Training = False):
-        batch_idx = 0
         data = data.transpose(0,4,1,2,3)
         input = torch.from_numpy(data).float().to(device)
         target = torch.from_numpy(label).argmax(dim = 1).to(device)
@@ -87,7 +89,9 @@ def validate(valid_datalist, batch_size, seq_len, num_classes, cfg_modality, dev
 def save_log(path, cond_train, cond_validate):
     fo = open(path, 'w')
     for i in range(len(cond_train)):
-        fo.write('str(i)'+str(cond_train[0])+str(cond_train[1])+str(cond_validate[0])+str(cond_validate[1])+'\n')
+        print(len(cond_train),len(cond_validate))
+        fo.write(str(i)+ ',' +str(cond_train[i][0])+ '  '+ str(cond_train[i][1])+\
+            '  '+ str(cond_validate[i][0])+ '  ' + str(cond_validate[i][1])+'\n')
     fo.close()
 
 
@@ -138,12 +142,15 @@ if __name__ == '__main__':
                                 weight_decay = 0.00005)
     cond_train = []
     cond_validate = []
+    cudnn.benchmark = True
 
     for epoch in range(total_epoch):
         lr = poly_lr_scheduler(optimizer, init_lr, iter = epoch, lr_decay_iter=1, max_iter=total_epoch, power=3)
-        loss_train, accu_train = train(training_datalist, batch_size, seq_len, num_classes, \
+        Model.batch_size=8
+        loss_train, accu_train = train(Model, optimizer, loss_fn, training_datalist, batch_size, seq_len, num_classes, \
             cfg_modality, device, max_iter = total_epoch, current = epoch)
-        loss_validation, accu_validation = validate(valid_datalist, batch_size, seq_len, \
+        Model.batch_size=4
+        loss_validation, accu_validation = validate(Model, optimizer, loss_fn, valid_datalist, 4, seq_len, \
             num_classes, cfg_modality, device)
         print('epoch:', epoch)
         print('train:', loss_train, accu_train)
