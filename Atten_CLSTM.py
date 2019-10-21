@@ -2,7 +2,7 @@
 """
 Created on Thu Apr 18 10:26:28 2019
 
-@author: 10659
+@author: Xingguang Zhang
 """
 import torch
 import torch.nn as nn
